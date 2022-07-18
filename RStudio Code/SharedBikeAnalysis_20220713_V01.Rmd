@@ -1,0 +1,508 @@
+---
+title: 'Capstone Project - Professional Google Data Analytics Certificate'
+author: "Nam Tran"
+date: "2022-07-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Case Study: How does a bike share navigate speedy success?
+
+# Introduction:
+* This project is the capstone assignment for the Google Data Analytics Professional Certificate program. I applied all the knowledge, skills, and competencies I gained from earlier courses (analysis phases, analytics thinking, data processing, data cleaning, data analyzing, and visualization) to address business objectives.
+* This project will analyze publicly available data sets provided by the course for a bike share program based in Chicago.
+
+### Scenario:
+* This project is belonged to the marketing analyst team at Cyclistic, a bike-share company in Chicago. Until now, Cyclistic’s marketing strategy relied on building general awareness and appealing to broad consumer segments. One approach that helped make these things possible was the flexibility of its pricing plans: single-ride passes, full-day passes,
+and annual memberships. Customers who purchase single-ride or full-day passes are referred to as casual riders. Customers who purchase annual memberships are Cyclistic members.
+
+* The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, analytics team wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, marketing team can design good marketing campaigns.
+
+# Business Objectives:
+* How do casual riders and annual memberships use Cyclistics services differently from 06/2021 to 05/2022? From these insights, the marketing team will design a new marketing strategy to convert casual riders into annual members.
+* Are there any trends in history data that can help predict the future demand of customers.
+
+# Data Collection:
+* The data for the project is provided by Motivate International, Inc. under this license.
+* The data was collected and downloaded from [link](https://divvy-tripdata.s3.amazonaws.com/index.html).
+* For this analysis, 12 months data was used; from June 2021 to May 2022. The data was accessible in a zip folder, and downloaded to a personal computer. The data are organized monthly, and merged into only one data.
+
+### **Load Library**
+```{r, warning=FALSE,message=FALSE, echo=T, results='hide'}
+library(dplyr)
+library(readr)
+library(geosphere)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(tidyverse)
+library(skimr)
+library(kableExtra)
+library(cowplot)
+```
+
+### **Import Data**
+```{r}
+trip_202106<-read.csv("202106-divvy-tripdata.csv")
+trip_202107<-read.csv("202107-divvy-tripdata.csv")
+trip_202108<-read.csv("202108-divvy-tripdata.csv")
+trip_202109<-read.csv("202109-divvy-tripdata.csv")
+trip_202110<-read.csv("202110-divvy-tripdata.csv")
+trip_202111<-read.csv("202111-divvy-tripdata.csv")
+trip_202112<-read.csv("202112-divvy-tripdata.csv")
+trip_202201<-read.csv("202201-divvy-tripdata.csv")
+trip_202202<-read.csv("202202-divvy-tripdata.csv")
+trip_202203<-read.csv("202203-divvy-tripdata.csv")
+trip_202204<-read.csv("202204-divvy-tripdata.csv")
+trip_202205<-read.csv("202205-divvy-tripdata.csv")
+```
+
+### **Merging Data**
+* After checking these datasets have same variable names. I merged these data into only one data.
+```{r}
+Trip_12months <- rbind(trip_202106, trip_202107, trip_202108, trip_202109,trip_202110,trip_202111,trip_202112,trip_202201,trip_202202,trip_202203,trip_202204,trip_202205)
+```
+
+# Data Processing:
+
+### Data Overview:
+
+```{r}
+head(Trip_12months)
+glimpse(Trip_12months)
+colnames(Trip_12months)
+```
+
+* There are 5,860,776 observations and 13 variables
+* **ride_id (categorical)**: Unique number assigned to a ride trip.
+* **rideable_type (categorical)**: Type of bike used during trip; standard two-wheel bike, reclining bike, hand tricycle, or cargo bike.
+* **started_at (datetime)**: Start date and time for the trip
+* **ended_at (datetime)**: End data and time for the trip
+* **start_station_name (categorical)**: Name of the station where the trip started
+* **start_station_id (categorical)**: Unique identification code assigned to the start station.
+* **end_station_name (categorical)**: Name of the station where the trip ended.
+* **end_station_id (categorical)**: Unique identification code assigned to the end station.
+* **start_lat (numeric)**: Latitude coordinate of where the trip started.
+* **start_lng (numeric)**: Longitude coordinate of where the trip started.
+* **end_lat (numeric)**: Latitude coordinate of where the trip ended.
+* **end_lng (numeric)**: Longitude coordinate of where the trip ended.
+* **member_casual (categorical)**: Customer type; “member” = annual member, “casual” = casual rider.
+
+### Data Cleaning and Formatting:
+
+```{r}
+skim(Trip_12months)
+```
+
+* **ride_id**
+
+```{r}
+n_unique(Trip_12months$ride_id)
+```
+
+* **rideable_type**
+
+```{r}
+table(Trip_12months$rideable_type)
+sum(is.null(Trip_12months$rideable_type))
+sum(is.na(Trip_12months$rideable_type))
+```
+
+* **started_at**
+
+Transform this variable from character to datetime datatype
+```{r}
+#head(Trip_12months$started_at)
+#sum(nchar(Trip_12months$started_at) != 19)
+Trip_12months$started_at <-  as.POSIXct(Trip_12months$started_at)
+```
+
+* **ended_at**
+
+Transform this variable from character to datetime datatype
+```{r}
+#sum(nchar(Trip_12months$ended_at) != 19)
+Trip_12months$ended_at <- as.POSIXct(Trip_12months$ended_at)
+```
+
+* Adding **Date, Month, Day_Of_Week, Start_Service_Hour and Ride_Duration variables** to better understand data
+
+```{r}
+Trip_12months$Ride_Date <- as.Date(Trip_12months$started_at)
+
+Trip_12months$Month <- format(as.Date(Trip_12months$started_at), "%b_%y")
+Trip_12months$Month <- ordered(Trip_12months$Month, levels=c("Jun_21", "Jul_21", "Aug_21", "Sep_21", "Oct_21", "Nov_21", "Dec_21", "Jan_22", "Feb_22", "Mar_22", "Apr_22", "May_22", "Jun_22"))
+
+Trip_12months$Day_Of_Month <- format(as.Date(Trip_12months$started_at), "%d")
+
+Trip_12months$Day_Of_Week <- format(as.Date(Trip_12months$started_at), "%A")
+Trip_12months$Day_Of_Week <- ordered(Trip_12months$Day_Of_Week, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+Trip_12months$Hour <- hour(Trip_12months$started_at)
+
+Trip_12months$Ride_Duration <- difftime(Trip_12months$ended_at, Trip_12months$started_at, units = "mins")
+Trip_12months$Ride_Duration <- as.double(Trip_12months$Ride_Duration)
+
+Trip_12months$WkDayWkEnd <- ifelse(Trip_12months$Day_Of_Week %in% c("Saturday", "Sunday"),"WeekEnd","WeekDay")
+```
+
+* Removing trips having duration < 0.
+
+```{r}
+Trip_12months <- Trip_12months[!(Trip_12months$Ride_Duration < 0),]
+```
+
+* **start_station_name**
+
+```{r}
+#sum(is.na(Trip_12months$start_station_name))
+#sum(is.null(Trip_12months$start_station_name))
+#sum(Trip_12months$start_station_name =="")
+Trip_12months$start_station_name[Trip_12months$start_station_name ==""] <- NA
+```
+
+* **end_station_name**
+
+```{r}
+#sum(is.na(Trip_12months$end_station_name))
+#sum(is.null(Trip_12months$end_station_name))
+#sum(Trip_12months$end_station_name =="")
+Trip_12months$end_station_name[Trip_12months$end_station_name ==""] <- NA
+```
+
+* **member_casual**
+
+```{r}
+table(Trip_12months$member_casual)
+sum(Trip_12months$member_casual %in% c("casual","member"))
+```
+
+* In this project, we will not consider the longitude and latitude information. I will drop **start_station_id, end_station_id, start_lat, start_lng, end_lat, end_lng variables**
+
+```{r}
+Trip_12months = subset(Trip_12months, select = -c(start_station_id, end_station_id, start_lat, start_lng, end_lat, end_lng))
+```
+
+# ANALYZE DATA:
+
+### **Data Exploratory Analysis** 
+
+* **The ride length**
+
+```{r}
+mean(Trip_12months$Ride_Duration)
+max(Trip_12months$Ride_Duration)
+min(Trip_12months$Ride_Duration)
+median(Trip_12months$Ride_Duration)
+```
+
+* **Customer Type and Ride Length**
+
+```{r}
+Ride_Length_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)
+  )
+Ride_Length_Sum  %>%
+  knitr::kable(caption = "Ride Length Summary", digits = 2) %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Customer Type, Ride Type and Ride Length**
+
+```{r}
+Ride_Type_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, rideable_type) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)
+  )
+Ride_Type_Sum %>%
+  knitr::kable(caption = "Ride Type Summary", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Top 5 Start Station by Customer Type**
+
+```{r}
+Start_Station_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, start_station_name) %>%
+  dplyr::summarise(Number_Of_Ride =n()) %>%
+  dplyr::arrange(desc(Number_Of_Ride)) %>%
+  na.omit(start_station_name)
+
+Start_Station_Sum_Casual <- filter(Start_Station_Sum, member_casual =="casual") %>%
+  slice(1:5)
+Start_Station_Sum_Member <- filter(Start_Station_Sum, member_casual =="member") %>%
+  slice(1:5)
+
+Start_Station_Sum_Casual %>%
+  knitr::kable(caption = "Top 5 Start Station for Cusual Customer", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+
+Start_Station_Sum_Member %>%
+  knitr::kable(caption = "Top 5 Start Station for Membership", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Top 5 End Station by Customer Type**
+
+```{r}
+End_Station_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, end_station_name) %>%
+  dplyr::summarise(Number_Of_Ride =n()) %>%
+  dplyr::arrange(desc(Number_Of_Ride)) %>%
+  na.omit(start_station_name)
+
+End_Station_Sum_Casual <- filter(End_Station_Sum, member_casual =="casual") %>%
+  slice(1:5)
+End_Station_Sum_Member <- filter(End_Station_Sum, member_casual =="member") %>%
+  slice(1:5)
+
+End_Station_Sum_Casual %>%
+  knitr::kable(caption = "Top 5 End Station for Cusual Customer", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+
+End_Station_Sum_Member %>%
+  knitr::kable(caption = "Top 5 End Station for Membership", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Customer Type, Ride Date and Ride Length**
+
+```{r}
+Trip_Date_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, Ride_Date) %>%
+  dplyr::summarise(
+    Number_Of_Trip = n(),
+    Average_Of_Duaration = mean(Ride_Duration)
+  )
+
+Trip_Date_Sum_Casual <- filter(Trip_Date_Sum, member_casual =="casual")
+Trip_Date_Sum_Member <- filter(Trip_Date_Sum, member_casual =="member")
+
+ggplot(Trip_Date_Sum_Casual , aes(x=Ride_Date, y=Average_Of_Duaration)) +
+ geom_line(color="#69b3a2", size=0.2, alpha=0.9) +
+  ggtitle("Casual Customer's Average Duration by Date")
+
+ggplot(Trip_Date_Sum_Member, aes(x=Ride_Date, y=Average_Of_Duaration)) +
+ geom_line(color="#F8766D", size=0.2, alpha=0.9) +
+  ggtitle("Menbership's Average Duration by Date")
+
+```
+* **Customer Type, Month and Ride Length**
+
+```{r}
+Month_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, Month) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)
+  )
+Month_Sum  %>%
+  knitr::kable(caption = "Customer Type and Months", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Customer Type, Day of Week and Ride Length**
+
+```{r}
+DayOfWeek_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, Day_Of_Week) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)
+  )
+DayOfWeek_Sum  %>%
+  knitr::kable(caption = "Customer Type and Day of Week", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **Customer Type, Start Time and Ride Length**
+
+```{r}
+Sart_Time_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, Hour) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)
+  )
+Sart_Time_Sum  %>%
+  knitr::kable(caption = "Customer Type and Start Time", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+* **User Type, Start Time, Weekday, Weekend and Ride Length Analysis**
+
+```{r}
+WDayWEnd_Sum <- Trip_12months %>%
+  dplyr::group_by(member_casual, WkDayWkEnd, Hour) %>%
+  dplyr::summarise(
+    Number_Of_Ride = n(),
+    Average_Duration = mean(Ride_Duration)) %>%
+  unite("user_type", c("member_casual","WkDayWkEnd"), sep = " ", remove = TRUE)
+
+WDayWEnd_Sum  %>%
+  knitr::kable(caption = "User Type, Start Time and Day Types", digits = 2) %>%
+  kableExtra::kable_styling() %>%
+  kable_classic(full_width = F, html_font = "Arial")
+```
+
+# Sharing / Data Visualization:
+
+### **Number of trips and trip duration by User Types**
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+
+User_Type_Chart <- ggplot(Trip_12months[,c("member_casual","ride_id")], aes(x = member_casual)) +
+  geom_bar(fill ="#eb8060") +
+  labs(
+    title = "Number of Trips by User Type",
+    subtitle = "From June 2021 to May 2022",
+    x = "User Type")
+
+Trip_Duration_Chart <- ggplot(Trip_12months[Trip_12months$Ride_Duration >=0 & Trip_12months$Ride_Duration <= 150,c("member_casual","Ride_Duration")], 
+                              aes(member_casual, Ride_Duration, fill = member_casual)) +
+  geom_boxplot() +
+  labs(
+    title = "Trip Duration by User Types",
+    subtitle = "From June 2021 to May 2022",
+    x = "User Type", y = "Trip Duation (mins)")+
+  scale_y_continuous(breaks = seq(0,150,10))+
+  theme(legend.position = "none")
+
+plot_grid(User_Type_Chart, Trip_Duration_Chart)
+```
+
+* The trips made by memberships was higher significantly than that of casual customers.
+* However, the duration of trips made by casual user were longer than that of membership. 
+
+### **The difference between memberships and casual users in using different types of bike **
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+Bike_Type_Chart <- ggplot(Trip_12months, aes(rideable_type, group = member_casual)) + 
+          geom_bar(aes(y = ..prop.., fill = factor(..x..)), stat="count") + 
+          scale_y_continuous(labels=scales::percent) +
+          ylab("Percentage") +
+          facet_grid(~member_casual)+ 
+          labs(
+              title = "Percentage Number of Trips by Bike Types and User Type",
+              subtitle = "From June 2021 to May 2022",
+              x = "User Type") +
+          theme(legend.position = "none")
+Bike_Type_Chart
+```
+
+* The percentage of electric bike of casual and member user were quite equal, about 40%, while the classic bike proportion of membership was higher than casual user, 60% and 48% respectively. Memberships had no interest in docked bike, while 10% trips of cusual users were made by docked_bike.
+
+### **The total trips made by casual users and memberships within a year from June 2021 to July 2022  **
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+
+Trip_Date_Chart <- ggplot(Trip_Date_Sum, aes(Ride_Date, Number_Of_Trip, color = member_casual)) +
+  geom_line() +
+  labs(title = "Total Trips by Date", subtitle = "From June 2021 to May 2022", x = "Date", y = "Number of Trips")+
+  theme(legend.position = c(0.5,0.9))
+
+Month_Chart <- ggplot(Month_Sum, aes(x = Month, y = Number_Of_Ride, fill = member_casual)) +
+  geom_col(width=0.7, position = position_dodge(width=0.7)) + 
+  labs(title ="Total Trips by Month", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 30))+
+  theme(legend.position = c(0.5,0.9))
+
+Month_Ride_Duration_Chart <- ggplot(Month_Sum, aes(x = Month, y = Average_Duration, fill = member_casual)) +
+  geom_col(width=0.7, position = position_dodge(width=0.7)) + 
+  labs(title ="Trip Average Duration by Month", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 30))+
+  theme(legend.position = c(0.45,0.9))
+
+Trip_Date_Chart
+Month_Chart 
+Month_Ride_Duration_Chart
+```
+
+* In June, July, and August of 2021, the numbers of trip made by casual user was slightly higher than memberships, while from September 2021 to May 2022, membership's rides were significant higher than casual rides.
+* The number of ride drop sharply from June 2021 toward to the end of 2021. The trend reversed from January 2022 to May 2022.
+* The trip average duration time of memberships were significant lower than that of casual trips.
+* The average duration time of memberships changed slightly around 14 minutes per trip, while trip duration of casual users dropped from 34 mins/trip in June 2021 to 23 mins/trip in December 2021, then increase again.
+
+### **The difference between membership and casual users by days of week**
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+
+DayOfWeek_TotalTrip_Chart <- ggplot(DayOfWeek_Sum, aes(x = Day_Of_Week, y = Number_Of_Ride, fill = member_casual)) +
+  geom_col(width=0.7, position = position_dodge(width=0.7)) + 
+  labs(title ="Total Trips by Day of Week", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 30))
+
+DayOfWeek_Ride_Duration_Chart <- ggplot(DayOfWeek_Sum, aes(x = Day_Of_Week, y = Average_Duration, fill = member_casual)) +
+  geom_col(width=0.7, position = position_dodge(width=0.7)) + 
+  labs(title ="Trip Average Duration by  Day of Week", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 30))
+
+DayOfWeek_TotalTrip_Chart
+DayOfWeek_Ride_Duration_Chart
+```
+
+* We can see opposite trends between membership and casual users within a week, casual users love riding bikes in weekend, while the number of trips made by memberships decreased from Monday toward to Sunday.
+* The time using bike of memberships increased slight from Monday to Sunday, while the time using bike of casual users on Saturday, Sunday, and Monday were significant higher than that of the rest.
+
+### **The difference between membership and casual users by Start time**
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+
+Hour_TotalTrip_Chart <- ggplot(Sart_Time_Sum, aes(x = Hour, y = Number_Of_Ride, color = member_casual, group = member_casual)) +
+  geom_line() + 
+  labs(title ="Total Trips by Hour", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 0))+
+  scale_x_continuous(breaks = seq(0, 23, 1)) 
+
+Hour_Ride_Duration_Chart <- ggplot(Sart_Time_Sum, aes(x = Hour, y = Average_Duration, color = member_casual, group = member_casual)) +
+  geom_line() + 
+  labs(title ="Trip Average Duration by  Hour", subtitle = "From June 2021 to May 2022") +
+  theme(axis.text.x = element_text(angle = 0)) +
+  scale_x_continuous(breaks = seq(0, 23, 1)) 
+
+Hour_TotalTrip_Chart
+Hour_Ride_Duration_Chart
+```
+
+* The total trips made by both casual users and memberships increased from 4:00 am to 5:00 pm, then drop significantly toward midnight.
+* A similar trends are seen in both casual users and membership, users having start time from 1am to 4am have longer using time rather than other start time.
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+HourWeekDay_Ride_Duration_Chart <- ggplot(WDayWEnd_Sum , aes(x = Hour, y = Average_Duration, color = user_type)) +
+  geom_line() + geom_point() +
+  labs(title ="Trip Average Duration by Hour of day of week", subtitle = "From June 2021 to May 2022", x = "Hour of the day", y = "Average (min)") +
+  theme(axis.text.x = element_text(angle = 0)) +
+  scale_x_continuous(breaks = seq(0, 23, 1)) 
+
+HourWeekDay_Ride_Duration_Chart
+```
+
+* Overall, in weekend, users tend to ride longer than in the week day.
+* With casual customer on week days, trips having start time from 12am to 4am have duration time significantly longer than others, while trips having start time from 5am to 8am last shortest.
+
+# Key Insignts and Recommendations:
+
+### Key Insignts
+* Casual users ride longer than membership users.
+* The trips made by memberships in the work day are more than on the weekend, while casual riders make more trips on the weekend.
+* The length of trips in the weekend of casual users is significantly higher than in the weekend, while the difference in trip duration of memberships is not significant.
+* The peak seasons are summer and fall.
+* The demands increase from 5am to 5pm for both memberships and casual riders.
+* Large proportion of casual users take rides from stations near the beaches, while memberships likely start the rides from city centers.
+
+### Marketing Recommendations to turn casual riders into memberships
+* Provide promotions or discounts on weekend rides for casual members if they upgrade to memberships.
+* Provide promotions for casual riders using services in workdays, so the company can increase the trips made by casual riders.
+* Provide promotions or discounts in low seasons (spring and winter)
+* Partner with restaurants and attractions near beaches to provide promotions and discounts for casual riders to encourage them to upgrade memberships because casual riders often start trips from these areas.
